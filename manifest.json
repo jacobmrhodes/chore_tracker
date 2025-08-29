@@ -1,0 +1,9 @@
+{
+  "domain": "chore_tracker",
+  "name": "Chore Tracker",
+  "version": "1.0.0",
+  "documentation": "https://example.com",
+  "requirements": [],
+  "codeowners": ["@you"],
+  "config_flow": true
+}
