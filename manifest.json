@@ -2,8 +2,8 @@
   "domain": "chore_tracker",
   "name": "Chore Tracker",
   "version": "1.0.0",
-  "documentation": "https://example.com",
+  "documentation": "https://github.com/jacobmrhodes/chore_tracker",
   "requirements": [],
-  "codeowners": ["@you"],
+  "codeowners": ["@jacobmrhodes"],
   "config_flow": true
 }
