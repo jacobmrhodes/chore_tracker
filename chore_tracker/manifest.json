@@ -3,7 +3,9 @@
   "name": "Chore Tracker",
   "version": "1.0.0",
   "documentation": "https://github.com/jacobmrhodes/chore_tracker",
+  "homeassistant": "2023.12.0",
   "requirements": [],
   "codeowners": ["@jacobmrhodes"],
-  "config_flow": true
+  "config_flow": true,
+  "iot_class": "local_polling"
 }
