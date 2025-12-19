@@ -20,10 +20,10 @@ jobs:
           pip install homeassistant
       - name: Validate manifest
         run: |
-          python -c "import json; json.load(open('chore_tracker/manifest.json'))"
+          python -c "import json; json.load(open('custom_components/chore_tracker/manifest.json'))"
       - name: Check integration structure
         run: |
-          test -f chore_tracker/__init__.py && \
-          test -f chore_tracker/manifest.json && \
-          test -f chore_tracker/config_flow.py && \
+          test -f custom_components/chore_tracker/__init__.py && \
+          test -f custom_components/chore_tracker/manifest.json && \
+          test -f custom_components/chore_tracker/config_flow.py && \
           echo "Integration structure is valid"
