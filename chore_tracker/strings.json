@@ -1,0 +1,35 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Setup Chore Tracker",
+        "description": "Create a new chore to track",
+        "data": {
+          "Friendly_Name": "Display Name",
+          "Interval": "Interval (e.g., '1 week', '3 days')",
+          "Assigned_To": "Assigned To",
+          "Room": "Room",
+          "Next_Due": "Next Due Date"
+        }
+      }
+    },
+    "error": {
+      "invalid_datetime": "Invalid date/time format"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Edit Chore",
+        "description": "Modify chore settings",
+        "data": {
+          "Friendly_Name": "Display Name",
+          "Interval": "Interval",
+          "Assigned_To": "Assigned To",
+          "Room": "Room",
+          "Next_Due": "Next Due Date"
+        }
+      }
+    }
+  }
+}
