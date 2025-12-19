@@ -21,18 +21,9 @@ class ChoreTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
-            # Convert Next_Due string to datetime if provided
-            next_due_str = user_input.get("Next_Due")
-            if next_due_str:
-                try:
-                    user_input["Next_Due"] = datetime.fromisoformat(next_due_str)
-                except Exception:
-                    errors["Next_Due"] = "invalid_datetime"
-                    return self.async_show_form(
-                        step_id="user",
-                        data_schema=self._get_schema(None),
-                        errors=errors,
-                    )
+            # Remove Next_Due from user_input - it's runtime state, not config
+            # The initial Next_Due will be set to tomorrow on first startup
+            user_input.pop("Next_Due", None)
 
             # Auto-generate internal Name (used as unique_id) with prefix
             friendly_name = user_input["Friendly_Name"]
@@ -53,7 +44,7 @@ class ChoreTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def _get_schema(self, current=None):
         """Get the form schema."""
-        # Default Next_Due = tomorrow
+        # Default Next_Due = tomorrow (for display only, not stored in config)
         default_next_due = (datetime.now() + timedelta(days=1)).date().isoformat()
         
         return vol.Schema(
@@ -82,17 +73,8 @@ class ChoreTrackerOptionsFlow(config_entries.OptionsFlow):
         errors = {}
 
         if user_input is not None:
-            next_due_str = user_input.get("Next_Due")
-            if next_due_str:
-                try:
-                    user_input["Next_Due"] = datetime.fromisoformat(next_due_str)
-                except Exception:
-                    errors["Next_Due"] = "invalid_datetime"
-                    return self.async_show_form(
-                        step_id="init",
-                        data_schema=self._get_options_schema(self.config_entry.data),
-                        errors=errors,
-                    )
+            # Remove Next_Due from user_input - it's runtime state, not config
+            user_input.pop("Next_Due", None)
 
             friendly_name = user_input["Friendly_Name"]
             slug = re.sub(r'[^a-z0-9_]+', '_', friendly_name.lower()).strip('_')
@@ -108,7 +90,8 @@ class ChoreTrackerOptionsFlow(config_entries.OptionsFlow):
 
     def _get_options_schema(self, current):
         """Get the options form schema."""
-        default_next_due = current.get("Next_Due") or (datetime.now() + timedelta(days=1)).date().isoformat()
+        # Default Next_Due = tomorrow (for display only, not stored in config)
+        default_next_due = (datetime.now() + timedelta(days=1)).date().isoformat()
 
         return vol.Schema(
             {
