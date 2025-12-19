@@ -7,6 +7,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_point_in_time
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import DOMAIN, ENTITY_PREFIX
 
@@ -21,7 +22,7 @@ async def async_setup_entry(
     async_add_entities([entity])
 
 
-class ChoreSwitch(SwitchEntity):
+class ChoreSwitch(SwitchEntity, RestoreEntity):
     """Representation of a Chore entity as a switch."""
 
     def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry):
@@ -49,18 +50,18 @@ class ChoreSwitch(SwitchEntity):
         self.entity_id = f"switch.{entity_name}"
         
         # Debug logging
-        _LOGGER.error(f"=== CHORE DEBUG INIT ===")
-        _LOGGER.error(f"Config entry data: {config_entry.data}")
-        _LOGGER.error(f"ENTITY_PREFIX: '{ENTITY_PREFIX}'")
-        _LOGGER.error(f"Raw Name from config: '{config_entry.data['Name']}'")
-        _LOGGER.error(f"Raw Friendly_Name from config: '{config_entry.data['Friendly_Name']}'")
-        _LOGGER.error(f"Final entity_name: '{entity_name}'")
-        _LOGGER.error(f"self._friendly_name: '{self._friendly_name}'")
-        _LOGGER.error(f"attr_name: '{self._attr_name}'")
-        _LOGGER.error(f"attr_unique_id: '{self._attr_unique_id}'")
-        _LOGGER.error(f"attr_friendly_name: '{self._attr_friendly_name}'")
-        _LOGGER.error(f"FORCED entity_id: '{self.entity_id}'")
-        _LOGGER.error(f"========================")
+        _LOGGER.debug(f"=== CHORE DEBUG INIT ===")
+        _LOGGER.debug(f"Config entry data: {config_entry.data}")
+        _LOGGER.debug(f"ENTITY_PREFIX: '{ENTITY_PREFIX}'")
+        _LOGGER.debug(f"Raw Name from config: '{config_entry.data['Name']}'")
+        _LOGGER.debug(f"Raw Friendly_Name from config: '{config_entry.data['Friendly_Name']}'")
+        _LOGGER.debug(f"Final entity_name: '{entity_name}'")
+        _LOGGER.debug(f"self._friendly_name: '{self._friendly_name}'")
+        _LOGGER.debug(f"attr_name: '{self._attr_name}'")
+        _LOGGER.debug(f"attr_unique_id: '{self._attr_unique_id}'")
+        _LOGGER.debug(f"attr_friendly_name: '{self._attr_friendly_name}'")
+        _LOGGER.debug(f"FORCED entity_id: '{self.entity_id}'")
+        _LOGGER.debug(f"========================")
 
         # Default state → off (not due)
         self._state = False
@@ -74,6 +75,40 @@ class ChoreSwitch(SwitchEntity):
 
         # Listen for config entry updates
         config_entry.add_update_listener(self.async_config_entry_updated)
+
+    async def async_added_to_hass(self) -> None:
+        """Restore state when entity is added to Home Assistant."""
+        await super().async_added_to_hass()
+        
+        # Try to restore previous state
+        last_state = await self.async_get_last_state()
+        if last_state is not None:
+            self._state = last_state.state == "on"
+            
+            # Restore attributes from previous state
+            if last_state.attributes:
+                last_completed_str = last_state.attributes.get("Last_Completed")
+                if last_completed_str:
+                    try:
+                        self._last_completed = datetime.fromisoformat(last_completed_str)
+                    except Exception:
+                        _LOGGER.warning(f"Could not parse Last_Completed: {last_completed_str}")
+                
+                next_due_str = last_state.attributes.get("Next_Due")
+                if next_due_str:
+                    try:
+                        self._next_due = datetime.fromisoformat(next_due_str)
+                        # Reschedule the auto-rearm timer
+                        if self._next_due:
+                            if getattr(self, "_unsub_timer", None):
+                                self._unsub_timer()
+                            self._unsub_timer = async_track_point_in_time(
+                                self.hass, self._auto_rearm, self._next_due
+                            )
+                    except Exception:
+                        _LOGGER.warning(f"Could not parse Next_Due: {next_due_str}")
+            
+            _LOGGER.debug(f"Restored state for {self.entity_id}: state={self._state}, last_completed={self._last_completed}, next_due={self._next_due}")
 
     def _update_from_config(self, data):
         """Update internal state from config entry data."""
@@ -94,7 +129,9 @@ class ChoreSwitch(SwitchEntity):
         # Force entity_id update
         self.entity_id = f"switch.{entity_name}"
 
-        self._interval = data.get("Interval")
+        self._interval = data.get("Interval", "1 week")
+        if not self._interval:
+            self._interval = "1 week"
 
         # Defaults for attributes
         self._assigned_to = data.get("Assigned_To", "Family").strip().title()
@@ -147,6 +184,12 @@ class ChoreSwitch(SwitchEntity):
         """Update when config changes."""
         self._update_from_config(entry.data)
         self.async_write_ha_state()
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Clean up when entity is removed from Home Assistant."""
+        if getattr(self, "_unsub_timer", None):
+            self._unsub_timer()
+            self._unsub_timer = None
 
     @property
     def name(self) -> str:
@@ -220,6 +263,11 @@ class ChoreSwitch(SwitchEntity):
 
     @callback
     def _auto_rearm(self, now):
-        self._state = True
-        self.async_write_ha_state()
-        self._unsub_timer = None
+        """Auto-rearm the chore when due date is reached."""
+        try:
+            self._state = True
+            self.async_write_ha_state()
+        except Exception as err:
+            _LOGGER.error(f"Error in auto-rearm for {self.entity_id}: {err}")
+        finally:
+            self._unsub_timer = None

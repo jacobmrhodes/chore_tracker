@@ -28,22 +28,35 @@ class ChoreTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     user_input["Next_Due"] = datetime.fromisoformat(next_due_str)
                 except Exception:
                     errors["Next_Due"] = "invalid_datetime"
+                    return self.async_show_form(
+                        step_id="user",
+                        data_schema=self._get_schema(None),
+                        errors=errors,
+                    )
 
             # Auto-generate internal Name (used as unique_id) with prefix
             friendly_name = user_input["Friendly_Name"]
             slug = re.sub(r'[^a-z0-9_]+', '_', friendly_name.lower()).strip('_')
             user_input["Name"] = f"chore_{slug}"
 
-
             return self.async_create_entry(
                 title=friendly_name,
                 data=user_input
             )
 
+        schema = self._get_schema(None)
+        return self.async_show_form(
+            step_id="user",
+            data_schema=schema,
+            errors=errors,
+        )
+
+    def _get_schema(self, current=None):
+        """Get the form schema."""
         # Default Next_Due = tomorrow
         default_next_due = (datetime.now() + timedelta(days=1)).date().isoformat()
-
-        schema = vol.Schema(
+        
+        return vol.Schema(
             {
                 vol.Required("Friendly_Name", default=""): cv.string,
                 vol.Required("Interval", default="1 week"): cv.string,
@@ -51,12 +64,6 @@ class ChoreTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional("Room", default=""): cv.string,
                 vol.Optional("Next_Due", default=default_next_due): cv.string,
             }
-        )
-
-        return self.async_show_form(
-            step_id="user",
-            data_schema=schema,
-            errors=errors,
         )
 
     @staticmethod
@@ -81,21 +88,29 @@ class ChoreTrackerOptionsFlow(config_entries.OptionsFlow):
                     user_input["Next_Due"] = datetime.fromisoformat(next_due_str)
                 except Exception:
                     errors["Next_Due"] = "invalid_datetime"
+                    return self.async_show_form(
+                        step_id="init",
+                        data_schema=self._get_options_schema(self.config_entry.data),
+                        errors=errors,
+                    )
 
             friendly_name = user_input["Friendly_Name"]
             slug = re.sub(r'[^a-z0-9_]+', '_', friendly_name.lower()).strip('_')
             user_input["Name"] = f"chore_{slug}"
-
 
             return self.async_create_entry(
                 title=self.config_entry.title,
                 data=user_input
             )
 
-        current = self.config_entry.data
+        schema = self._get_options_schema(self.config_entry.data)
+        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)
+
+    def _get_options_schema(self, current):
+        """Get the options form schema."""
         default_next_due = current.get("Next_Due") or (datetime.now() + timedelta(days=1)).date().isoformat()
 
-        schema = vol.Schema(
+        return vol.Schema(
             {
                 vol.Required("Friendly_Name", default=current.get("Friendly_Name", "")): cv.string,
                 vol.Required("Interval", default=current.get("Interval", "1 week")): cv.string,
@@ -104,5 +119,3 @@ class ChoreTrackerOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional("Next_Due", default=default_next_due): cv.string,
             }
         )
-
-        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)
