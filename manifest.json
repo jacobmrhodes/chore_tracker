@@ -1,0 +1,9 @@
+{
+  "domain": "chore_tracker",
+  "name": "Chore Tracker",
+  "version": "1.0.0",
+  "documentation": "https://github.com/jacobmrhodes/chore_tracker",
+  "requirements": [],
+  "codeowners": ["@jacobmrhodes"],
+  "config_flow": true
+}
