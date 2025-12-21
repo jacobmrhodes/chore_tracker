@@ -29,24 +29,47 @@ class ChoreSwitch(SwitchEntity, RestoreEntity):
         self.hass = hass
         self.config_entry = config_entry
 
-        # Clean up old Next_Due and Last_Completed from config entry (they are runtime state, not config)
-        # This migration removes stale data that may exist in old config entries
-        needs_update = False
-        _LOGGER.info(f"=== INIT: Config entry data keys: {list(config_entry.data.keys())}")
-        _LOGGER.info(f"=== INIT: Config entry data: {config_entry.data}")
+        # --- 1. CAPTURE INITIAL DATA ---
+        # Capture Next_Due from the config (user input) before we delete it.
+        self._initial_next_due = None
         
         if "Next_Due" in config_entry.data:
-            _LOGGER.warning(f"=== INIT: Found stale Next_Due in config: {config_entry.data.get('Next_Due')} - REMOVING IT")
-            config_entry.data.pop("Next_Due")
+            nd_val = config_entry.data["Next_Due"]
+            # Only use it if the user actually typed something (not empty)
+            if nd_val:
+                try:
+                    self._initial_next_due = datetime.fromisoformat(nd_val)
+                    _LOGGER.info(f"=== INIT: Captured initial Next_Due from config: {self._initial_next_due}")
+                except Exception as e:
+                    _LOGGER.warning(f"=== INIT: Could not parse initial Next_Due: {e}")
+
+        # --- 2. CLEANUP CONFIG ENTRY ---
+        # FIX: Create a mutable COPY of the dictionary to modify it
+        # This prevents the "mappingproxy object has no attribute pop" error
+        new_data = dict(config_entry.data)
+        needs_update = False
+        
+        _LOGGER.info(f"=== INIT: Config entry data keys: {list(new_data.keys())}")
+        _LOGGER.info(f"=== INIT: Config entry data: {new_data}")
+        
+        # Remove 'Next_Due' from the stored config so it doesn't overwrite state on future restarts
+        if "Next_Due" in new_data:
+            _LOGGER.warning(f"=== INIT: Found Next_Due in config: {new_data.get('Next_Due')} - REMOVING IT (One-time setup)")
+            new_data.pop("Next_Due")
             needs_update = True
-        if "Last_Completed" in config_entry.data:
-            _LOGGER.warning(f"=== INIT: Found stale Last_Completed in config: {config_entry.data.get('Last_Completed')} - REMOVING IT")
-            config_entry.data.pop("Last_Completed")
+            
+        # Remove 'Last_Completed' if present (cleanup old data)
+        if "Last_Completed" in new_data:
+            _LOGGER.warning(f"=== INIT: Found stale Last_Completed in config: {new_data.get('Last_Completed')} - REMOVING IT")
+            new_data.pop("Last_Completed")
             needs_update = True
+            
+        # Save the cleaned data back to Home Assistant
         if needs_update:
-            hass.config_entries.async_update_entry(config_entry, data=config_entry.data)
+            hass.config_entries.async_update_entry(config_entry, data=new_data)
             _LOGGER.warning(f"=== INIT: Updated config entry to remove runtime state")
 
+        # --- 3. STANDARD SETUP ---
         # Human-friendly display name - exactly what user typed
         self._friendly_name = config_entry.data["Friendly_Name"]
         _LOGGER.info(f"=== INIT: Friendly name: {self._friendly_name}")
@@ -70,7 +93,6 @@ class ChoreSwitch(SwitchEntity, RestoreEntity):
         
         # Debug logging
         _LOGGER.debug(f"=== CHORE DEBUG INIT ===")
-        _LOGGER.debug(f"Config entry data: {config_entry.data}")
         _LOGGER.debug(f"ENTITY_PREFIX: '{ENTITY_PREFIX}'")
         _LOGGER.debug(f"Raw Name from config: '{config_entry.data['Name']}'")
         _LOGGER.debug(f"Raw Friendly_Name from config: '{config_entry.data['Friendly_Name']}'")
@@ -78,7 +100,6 @@ class ChoreSwitch(SwitchEntity, RestoreEntity):
         _LOGGER.debug(f"self._friendly_name: '{self._friendly_name}'")
         _LOGGER.debug(f"attr_name: '{self._attr_name}'")
         _LOGGER.debug(f"attr_unique_id: '{self._attr_unique_id}'")
-        _LOGGER.debug(f"attr_friendly_name: '{self._attr_friendly_name}'")
         _LOGGER.debug(f"FORCED entity_id: '{self.entity_id}'")
         _LOGGER.debug(f"========================")
 
@@ -156,13 +177,23 @@ class ChoreSwitch(SwitchEntity, RestoreEntity):
         else:
             # First time setup - no previous state exists
             self._last_completed = datetime.now()
-            self._next_due = self._calculate_next_due(self._last_completed)
-            _LOGGER.info(f"[{self.entity_id}] First time setup - set Last_Completed to: {self._last_completed} Next_Due={self._next_due}")            
-            # Schedule the timer immediately so the switch works without needing a toggle
+            
+            if self._initial_next_due:
+                # User provided a specific Next Due date in the form
+                self._next_due = self._initial_next_due
+                _LOGGER.info(f"[{self.entity_id}] First time setup: Using user-defined Next_Due: {self._next_due}")
+            else:
+                # No user date provided (or cleared), calculate based on interval
+                self._next_due = self._calculate_next_due(self._last_completed)
+                _LOGGER.info(f"[{self.entity_id}] First time setup: Calculated Next_Due based on interval: {self._next_due}")
+
+            # Schedule the timer immediately for the first run
             if self._next_due:
                 self._unsub_timer = async_track_point_in_time(
                     self.hass, self._auto_rearm, self._next_due
                 )
+                _LOGGER.info(f"[{self.entity_id}] Scheduled initial auto-rearm for: {self._next_due}")
+
     def _update_from_config(self, data):
         """Update internal state from config entry data."""
         # Keep user's exact friendly name for display

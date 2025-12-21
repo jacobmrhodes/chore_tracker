@@ -21,9 +21,6 @@ class ChoreTrackerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
-            # Remove Next_Due from user_input - it's runtime state, not config
-            # The initial Next_Due will be set to tomorrow on first startup
-            user_input.pop("Next_Due", None)
 
             # Auto-generate internal Name (used as unique_id) with prefix
             friendly_name = user_input["Friendly_Name"]
