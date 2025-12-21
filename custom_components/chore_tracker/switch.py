@@ -156,9 +156,13 @@ class ChoreSwitch(SwitchEntity, RestoreEntity):
         else:
             # First time setup - no previous state exists
             self._last_completed = datetime.now()
-            self._next_due = None
-            _LOGGER.info(f"[{self.entity_id}] No previous state found, first time setup")
-
+            self._next_due = self._calculate_next_due(self._last_completed)
+            _LOGGER.info(f"[{self.entity_id}] First time setup - set Last_Completed to: {self._last_completed} Next_Due={self._next_due}")            
+            # Schedule the timer immediately so the switch works without needing a toggle
+            if self._next_due:
+                self._unsub_timer = async_track_point_in_time(
+                    self.hass, self._auto_rearm, self._next_due
+                )
     def _update_from_config(self, data):
         """Update internal state from config entry data."""
         # Keep user's exact friendly name for display
